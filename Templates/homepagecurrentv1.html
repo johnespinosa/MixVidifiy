@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MixVidify</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2em;
+    }
+    .logo {
+      max-width: 200px;
+      margin-bottom: 20px;
+    }
+    .upload-area {
+      border: 2px dashed #ccc;
+      border-radius: 10px;
+      padding: 2em;
+      background: white;
+      width: 90%;
+      max-width: 500px;
+      text-align: center;
+    }
+    .upload-area.dragover {
+      border-color: #f00;
+    }
+    input[type="file"] {
+      margin: 1em 0;
+    }
+    .progress {
+      margin-top: 20px;
+      width: 100%;
+      background: #eee;
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 20px;
+      background: #e60000;
+      width: 0%;
+      transition: width 0.3s;
+    }
+    #startButton:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .logo-container {
+      max-width: 70%;
+      text-align: center;
+    }
+
+    .logo-container img {
+      width: 70%;
+      max-width: 600px; /* Max width for large screens */
+      height: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo-container">
+    <img src="/static/Images/MixVidifyLogoV2.png" alt="MixVidify Logo">
+  </div>
+  <div style="background: #E8E9EB; color: #38363E; border: 1px solid #E8E9EB; padding: 1em; margin-bottom: 1em; width: 90%; max-width: 800px; text-align: center; border-radius: 8px;">
+    <p>
+    MixVidify allows you to provide an audio file (like an mp3 or WAV) and in image file (like a jpeg or png) to create a video you can upload to YouTube.
+    </p> 
+    <p>
+    MixVidify is a free site, so please handle with care. To ensure your video processes correctly, keep this browser tab open and adjust your computer settings to prevent it from sleeping. 
+    </p>
+<p class="text-center mt-4">
+  Made with ❤️ by 
+  <a href="http://www.pkfiremusic.com" target="_blank" rel="noopener noreferrer" style="color: black; font-weight: bold; text-decoration: underline; text-underline-offset: 2px;">
+    PK FiRE
+  </a>
+</p>
+  </div>
+  <div class="upload-area" id="dropArea">
+    <p>Drag and drop your audio and image files here</p>
+    <label>Upload Image:
+      <input type="file" id="imageInput" accept="image/*">
+    </label>
+    <p></p>
+    <label>Upload Audio:
+      <input type="file" id="audioInput" accept="audio/*">
+    </label>
+    <p></p>
+    <button id="startButton" disabled="">Generate Video</button>
+    <div class="progress" id="progressContainer" style="display:none">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <p id="status"></p>
+  </div>
+  <br><br>
+  <div class="container text-center my-5">
+  <p>Example MixVidify Video:</p>
+  <iframe width="560" height="315" src="https://www.youtube.com/embed/kwsplLAe4zk?start=2682" title="Example MixVidify Video" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen="">
+  </iframe>
+</div>
+  <script>
+    const dropArea = document.getElementById('dropArea');
+    const audioInput = document.getElementById('audioInput');
+    const imageInput = document.getElementById('imageInput');
+    const startButton = document.getElementById('startButton');
+    const statusText = document.getElementById('status');
+    const progressContainer = document.getElementById('progressContainer');
+    const progressBar = document.getElementById('progressBar');
+
+    function checkInputs() {
+      startButton.disabled = !(audioInput.files.length && imageInput.files.length);
+    }
+
+    imageInput.addEventListener('change', checkInputs);
+    audioInput.addEventListener('change', checkInputs);
+
+    dropArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropArea.classList.add('dragover');
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+      dropArea.classList.remove('dragover');
+    });
+
+    dropArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropArea.classList.remove('dragover');
+
+      const dt = new DataTransfer();
+
+      const files = Array.from(e.dataTransfer.files);
+      files.forEach(file => {
+        if (file.type.startsWith('audio')) {
+          dt.items.add(file);
+          audioInput.files = dt.files;
+        }
+        if (file.type.startsWith('image')) {
+          dt.items.add(file);
+          imageInput.files = dt.files;
+        }
+      });
+      checkInputs();
+    });
+
+    startButton.addEventListener('click', async () => {
+      const audioFile = audioInput.files[0];
+      const imageFile = imageInput.files[0];
+
+      if (!audioFile || !imageFile) return;
+
+      statusText.textContent = 'Processing...';
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+
+      try {
+        const audio = new Audio(URL.createObjectURL(audioFile));
+        await new Promise((resolve) => {
+          audio.addEventListener('loadedmetadata', resolve);
+        });
+        const duration = audio.duration;
+
+        const audioContext = new AudioContext();
+        const audioBuffer = await audioContext.decodeAudioData(await audioFile.arrayBuffer());
+        const audioSource = audioContext.createBufferSource();
+        audioSource.buffer = audioBuffer;
+        const destination = audioContext.createMediaStreamDestination();
+        audioSource.connect(destination);
+        audioSource.start();
+
+        const image = new Image();
+        image.src = URL.createObjectURL(imageFile);
+        await new Promise((resolve) => (image.onload = resolve));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 1920;
+        canvas.height = 1080;
+        const ctx = canvas.getContext('2d');
+
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        const videoStream = canvas.captureStream(30);
+        const combinedStream = new MediaStream([
+          ...videoStream.getVideoTracks(),
+          ...destination.stream.getAudioTracks(),
+        ]);
+
+        const mediaRecorder = new MediaRecorder(combinedStream, { mimeType: 'video/webm' });
+        const chunks = [];
+
+        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const videoBlob = new Blob(chunks, { type: 'video/webm' });
+          const downloadLink = document.createElement('a');
+          downloadLink.href = URL.createObjectURL(videoBlob);
+          downloadLink.download = 'video_with_audio.webm';
+          downloadLink.textContent = 'Download Your Video';
+          const dropArea = document.getElementById('dropArea');
+          dropArea.appendChild(downloadLink);
+
+          statusText.textContent = 'Video processing complete. Click the link to download.';
+          progressBar.style.width = '100%';
+        };
+
+        mediaRecorder.start();
+
+        let currentTime = 0;
+        const interval = 1000 / 30;
+        const frameInterval = setInterval(() => {
+          if (currentTime >= duration) {
+            clearInterval(frameInterval);
+            mediaRecorder.stop();
+          } else {
+            ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+            currentTime += interval / 1000;
+            progressBar.style.width = ((currentTime / duration) * 100) + '%';
+          }
+        }, interval);
+      } catch (error) {
+        console.error('Error during video processing:', error);
+        statusText.textContent = 'An error occurred. Please try again.';
+      }
+    });
+  </script>
+
+
+ </body></html>

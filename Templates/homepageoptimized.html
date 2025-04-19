@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Renderer with FFmpeg</title>
+    <style>
+        #progress {
+            margin-top: 20px;
+            font-size: 1.2em;
+            font-family: Arial, sans-serif;
+        }
+        #preview {
+            margin-top: 20px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Client-Side Video Renderer with FFmpeg</h1>
+    <input type="file" id="imageInput" accept="image/*">
+    <input type="file" id="audioInput" accept="audio/*">
+    <button id="startButton">Generate Video</button>
+
+    <div id="progress">Status: Waiting for user input...</div>
+
+    <video id="preview" controls></video>
+
+    <script>
+        let ffmpeg;
+
+        document.getElementById('startButton').addEventListener('click', async () => {
+            const progressElement = document.getElementById('progress');
+            const imageInput = document.getElementById('imageInput');
+            const audioInput = document.getElementById('audioInput');
+
+            if (!imageInput.files[0] || !audioInput.files[0]) {
+                alert('Please upload an image and an audio file.');
+                return;
+            }
+
+            progressElement.textContent = 'Initializing FFmpeg...';
+
+            // Load FFmpeg dynamically
+            if (!ffmpeg) {
+                const { createFFmpeg, fetchFile } = FFmpeg;
+                ffmpeg = createFFmpeg({ log: true });
+                await ffmpeg.load();
+            }
+
+            progressElement.textContent = 'Processing video...';
+
+            const imageFile = imageInput.files[0];
+            const audioFile = audioInput.files[0];
+
+            // Write files to FFmpeg virtual file system
+            ffmpeg.FS('writeFile', 'image.jpg', await fetchFile(imageFile));
+            ffmpeg.FS('writeFile', 'audio.mp3', await fetchFile(audioFile));
+
+            // Run FFmpeg commands
+            await ffmpeg.run(
+                '-loop', '1',
+                '-i', 'image.jpg',
+                '-i', 'audio.mp3',
+                '-c:v', 'libx264',
+                '-tune', 'stillimage',
+                '-c:a', 'aac',
+                '-b:a', '192k',
+                '-shortest',
+                'output.mp4'
+            );
+
+            // Read the result
+            const data = ffmpeg.FS('readFile', 'output.mp4');
+            const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+            const videoUrl = URL.createObjectURL(videoBlob);
+
+            // Display the video
+            const videoElement = document.getElementById('preview');
+            videoElement.src = videoUrl;
+            videoElement.style.display = 'block';
+
+            // Provide a download link
+            const downloadLink = document.createElement('a');
+            downloadLink.href = videoUrl;
+            downloadLink.download = 'generated_video.mp4';
+            downloadLink.textContent = 'Download Video';
+            document.body.appendChild(downloadLink);
+
+            progressElement.textContent = 'Video generation complete!';
+        });
+    </script>
+</body>
+</html>

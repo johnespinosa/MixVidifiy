@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Video with Progress Bar</title>
+</head>
+<body>
+  <h1>Create Video from Audio and Image</h1>
+  <label for="audioInput">Upload Audio File:</label>
+  <input type="file" id="audioInput" accept="audio/*">
+  <br><br>
+  <label for="imageInput">Upload Image File:</label>
+  <input type="file" id="imageInput" accept="image/*">
+  <br><br>
+  <button id="startButton">Generate Video</button>
+  <br><br>
+  <progress id="progressBar" value="0" max="100" style="width: 100%;"></progress>
+  <p id="status"></p>
+  <script>
+    const startButton = document.getElementById('startButton');
+    const audioInput = document.getElementById('audioInput');
+    const imageInput = document.getElementById('imageInput');
+    const statusText = document.getElementById('status');
+    const progressBar = document.getElementById('progressBar');
+
+    startButton.addEventListener('click', async () => {
+      const audioFile = audioInput.files[0];
+      const imageFile = imageInput.files[0];
+
+      if (!audioFile || !imageFile) {
+        alert('Please upload both an audio file and an image file.');
+        return;
+      }
+
+      statusText.textContent = 'Processing...';
+      progressBar.value = 0;
+
+      try {
+        // Load audio
+        const audio = new Audio(URL.createObjectURL(audioFile));
+        await new Promise((resolve) => {
+          audio.addEventListener('loadedmetadata', resolve);
+        });
+        const duration = audio.duration;
+
+        // Load image
+        const image = new Image();
+        image.src = URL.createObjectURL(imageFile);
+        await new Promise((resolve) => (image.onload = resolve));
+
+        // Setup canvas
+        const canvas = document.createElement('canvas');
+        canvas.width = 1920; // YouTube default width
+        canvas.height = 1080; // YouTube default height
+        const ctx = canvas.getContext('2d');
+
+        // Draw initial frame
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        // Capture canvas stream
+        const stream = canvas.captureStream(30); // 30 FPS
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+        const chunks = [];
+
+        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          const videoBlob = new Blob(chunks, { type: 'video/webm' });
+          const downloadLink = document.createElement('a');
+          downloadLink.href = URL.createObjectURL(videoBlob);
+          downloadLink.download = 'video_with_audio.webm';
+          downloadLink.textContent = 'Download Your Video';
+          document.body.appendChild(downloadLink);
+
+          statusText.textContent = 'Video processing complete. Click the link to download.';
+          progressBar.value = 100; // Ensure progress bar is complete
+        };
+
+        // Start recording
+        mediaRecorder.start();
+
+        // Draw frames continuously for the duration of the audio
+        let currentTime = 0;
+        const interval = 1000 / 30; // 30 FPS in milliseconds
+        const frameInterval = setInterval(() => {
+          if (currentTime >= duration) {
+            clearInterval(fr

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Processing App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            margin: 10px 0;
+        }
+        .status-processing {
+            color: orange;
+        }
+        .status-complete {
+            color: green;
+        }
+        .status-failed {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to the Video Processing App</h1>
+    <h2>Upload Image and Audio to Create Video</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <label for="video_name">Video Name:</label>
+        <input type="text" name="video_name" placeholder="Enter video name" required><br><br>
+
+        <label for="image">Select an image:</label>
+        <input type="file" name="image" required><br><br>
+
+        <label for="audio">Select an audio file:</label>
+        <input type="file" name="audio" required><br><br>
+
+        <button type="submit">Create Video</button>
+    </form>
+
+    <h2>All Uploaded Videos</h2>
+    <ul id="video-list">
+        {% for friendly_name, guid_name in videos %}
+        <li id="{{ guid_name }}">
+            {{ friendly_name }} - <span class="status-{{ processing_status.get(guid_name, 'unknown').lower() }}">{{ processing_status.get(guid_name, 'Unknown') }}</span>
+            {% if processing_status.get(guid_name) == 'Complete' %}
+            <a href="/download/{{ guid_name }}" download>Download</a>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+
+    <script>
+        const eventSource = new EventSource('/events');
+        eventSource.onmessage = function(event) {
+            const updates = JSON.parse(event.data);
+            const videoList = document.getElementById('video-list');
+
+            updates.forEach(update => {
+                let listItem = document.getElementById(update.video);
+
+                if (!listItem) {
+                    listItem = document.createElement('li');
+                    listItem.id = update.video;
+                    videoList.appendChild(listItem);
+                }
+
+                listItem.innerHTML = `
+                    ${update.video} - 
+                    <span class="status-${update.status.toLowerCase()}">${update.status}</span>
+                    ${update.download_link ? `<a href="${update.download_link}" download>Download</a>` : ''}
+                `;
+            });
+        };
+    </script>
+</body>
+</html>

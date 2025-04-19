@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Video</title>
+</head>
+<body>
+  <input type="file" id="imageInput" accept="image/*">
+  <input type="file" id="audioInput" accept="audio/*">
+  <button id="start">Start</button>
+  <button id="stop">Stop</button>
+  <video controls></video>
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const audioInput = document.getElementById('audioInput');
+    const startButton = document.getElementById('start');
+    const stopButton = document.getElementById('stop');
+    const videoElement = document.querySelector('video');
+    let mediaRecorder, chunks = [];
+
+    startButton.addEventListener('click', async () => {
+      const imageFile = imageInput.files[0];
+      const audioFile = audioInput.files[0];
+
+      if (!imageFile || !audioFile) {
+        alert('Please select both an image and an audio file.');
+        return;
+      }
+
+      const img = new Image();
+      img.src = URL.createObjectURL(imageFile);
+
+      const audio = new Audio(URL.createObjectURL(audioFile));
+      await audio.play();
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1920; // Video resolution width
+      canvas.height = 1080; // Video resolution height
+
+      const stream = canvas.captureStream(30); // 30 FPS
+      const audioStream = audio.captureStream();
+      const combinedStream = new MediaStream([...stream.getVideoTracks(), ...audioStream.getAudioTracks()]);
+
+      mediaRecorder = new MediaRecorder(combinedStream);
+      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        videoElement.src = URL.createObjectURL(blob);
+        chunks = [];
+      };
+
+      mediaRecorder.start();
+
+      const drawFrame = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        if (!audio.paused && !audio.ended) {
+          requestAnimationFrame(drawFrame);
+        } else {
+          mediaRecorder.stop();
+        }
+      };
+
+      drawFrame();
+    });
+
+    stopButton.addEventListener('click', () => {
+      if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+      }
+    });
+  </script>
+</body>
+</html>
